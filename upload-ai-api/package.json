@@ -8,6 +8,9 @@
   },
   "author": "",
   "license": "ISC",
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
   "devDependencies": {
     "@types/node": "^20.6.0",
     "prisma": "^5.2.0",

@@ -8,8 +8,22 @@ import { loadFFMpeg } from '@/lib/ffmpeg'
 import { fetchFile } from "@ffmpeg/util"
 import { api } from "@/lib/axios"
 
-export function VideoInputForm() {
+type Status = 'waiting' | 'converting' | 'uploading' | 'generating' | 'success' | 'failure'
+const statusMessages = {
+    converting: 'Convertendo...',
+    generating: 'Transcrevendo...',
+    uploading: 'Carregando...',
+    success: 'Sucesso!',
+    failure: 'Erro'
+}
+
+interface VideoInputFormProps {
+    onVideoUploaded: (id: string) => void
+}
+
+export function VideoInputForm(props: VideoInputFormProps) {
     const [video, setVideo] = useState<File | null>(null)
+    const [status, setStatus] = useState<Status>('waiting')
     const promptInputRef = useRef<HTMLTextAreaElement>(null)
     function handleFileSelected(e: ChangeEvent<HTMLInputElement>) {
         const { files } = e.currentTarget
@@ -52,26 +66,33 @@ export function VideoInputForm() {
     async function handleGenerateVideo(e: FormEvent<HTMLFormElement>) {
         e.preventDefault()
         const prompt = promptInputRef.current?.value
-
         if (!video) {
             return
         }
+        setStatus('converting')
+        try {
+            const audioFile = await convertVideoToAudio(video)
 
-        const audioFile = await convertVideoToAudio(video)
+            const data = new FormData()
 
-        const data = new FormData()
+            data.append('file', audioFile)
 
-        data.append('file', audioFile)
+            setStatus('uploading')
+            const response = await api.post('/videos', data)
 
-        const response = await api.post('/videos', data)
+            const videoId = response.data.video.id
 
-        const videoId = response.data.video.id
-
-        await api.post(`/videos/${videoId}/transcription`, {
-            prompt
-        })
-
-        console.log('finalizou')
+            setStatus('generating')
+            await api.post(`/videos/${videoId}/transcription`, {
+                prompt
+            })
+            setStatus('success')
+            props.onVideoUploaded(videoId);
+            console.log('finalizou')
+        } catch (error) {
+            console.log(error);
+            setStatus('failure')
+        }
     }
 
     const previewURL = useMemo(() => {
@@ -89,9 +110,17 @@ export function VideoInputForm() {
             <Separator />
             <div className="space-y-2">
                 <Label htmlFor="transcription_prompt">Transcription prompt</Label>
-                <Textarea ref={promptInputRef} id="transcription_prompt" className="h-20 leading-relaxed resize-none" placeholder="Include key messages mentioned in the video separated by commas."></Textarea>
+                <Textarea disabled={status !== 'waiting'} ref={promptInputRef} id="transcription_prompt" className="h-20 leading-relaxed resize-none" placeholder="Include key messages mentioned in the video separated by commas."></Textarea>
             </div>
-            <Button type="submit" className="w-full">Upload video <Upload className="w-4 h-4 ml-2" /></Button>
+            <Button
+                data-success={status === 'success'}
+                data-error={status === 'failure'}
+                disabled={status !== 'waiting' && status !== 'failure'}
+                type="submit"
+                className="w-full data-[success=true]:bg-emerald-400 data-[error=true]:bg-red-500">
+                {status === 'waiting' ? (
+                    <>Upload video <Upload className="w-4 h-4 ml-2" /></>
+                ) : statusMessages[status]}</Button>
         </form>
     )
 }
