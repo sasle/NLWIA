@@ -21,7 +21,7 @@ POST http://localhost:3333/videos/2866c700-04aa-4d24-8bd0-0d41956a43da/transcrip
 Content-Type: application/json
 
 {
-    "prompt": "cachorro"
+    "prompt": "cachorro, meu, saudades"
 }
 
 ###
